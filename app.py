@@ -68,7 +68,7 @@ def extract_text_with_vision_llm(image_bytes: bytes) -> str:
     prompt = "Ekstrak seluruh teks dari gambar ini secara presisi. Jangan tambahkan komentar, pembuka, atau penjelasan. Kembalikan murni hanya teks."
     try:
         completion = groq_client.chat.completions.create(
-            model="llama-3.2-11b-vision-preview",
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[
                 {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}
             ],
@@ -200,7 +200,7 @@ def handle_rag_query(message):
         context_chunks = [hit.payload['text'] for hit in search_result if hit.score >= THRESHOLD]
         context_text = "\n---\n".join(context_chunks)
 
-        system_prompt = f"""Anda adalah asisten AI yang bertugas menjawab pertanyaan berdasarkan konteks yang diberikan secara objektif dan to the point(diperbolehkan menambahkan sedikit kata pengantar dan penutup, selama tidak menyalahi informasi).
+        system_prompt = f"""Anda adalah asisten AI yang bertugas menjawab pertanyaan berdasarkan konteks yang diberikan secara objektif dan to the point(diperbolehkan menambahkan sedikit kata pengantar dan penutup seperti ya atau tidak, selama tidak menyalahi informasi).
         Aturan ketat:
         1. Jawab pertanyaan HANYA menggunakan informasi dari teks Konteks di bawah ini.
         2. Jangan gunakan pengetahuan luar Anda yang tidak tertulis di dalam konteks.
@@ -209,7 +209,7 @@ def handle_rag_query(message):
         completion = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_question}],
-            temperature=0.1,
+            temperature=0.2,
             max_tokens=500
         )
         bot.reply_to(message, completion.choices[0].message.content)
