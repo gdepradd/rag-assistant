@@ -31,7 +31,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 HF_TOKEN = os.getenv("HF_TOKEN") # Wajib ditambahkan di Railway
 
 COLLECTION_NAME = "asisten_rag_konteks"
-THRESHOLD = 0.60
+THRESHOLD = 0.50
 
 # Instance
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
@@ -65,7 +65,8 @@ def get_embedding_from_hf(text: str) -> list:
 # ==================== HELPER: GROQ VISION OCR ====================
 def extract_text_with_vision_llm(image_bytes: bytes) -> str:
     base64_image = base64.b64encode(image_bytes).decode('utf-8')
-    prompt = "Ekstrak seluruh teks dari gambar ini secara presisi. Jangan tambahkan komentar, pembuka, atau penjelasan. Kembalikan murni hanya teks."
+    # Prompt dipertegas untuk tabel
+    prompt = "Ekstrak seluruh teks dan tabel dari gambar ini secara presisi tanpa ada satu baris pun yang terlewat. Pertahankan format tabel. Jangan tambahkan komentar, pembuka, atau penjelasan."
     try:
         completion = groq_client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -73,11 +74,10 @@ def extract_text_with_vision_llm(image_bytes: bytes) -> str:
                 {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}
             ],
             temperature=0.0,
-            max_tokens=1024
+            max_tokens=4096 # Dinaikkan 4x lipat untuk mengakomodasi tabel panjang
         )
         return completion.choices[0].message.content
     except Exception as e:
-        # Jangan gunakan return "" agar kita tahu error aslinya
         return f"[ERROR_VISION: {str(e)}]"
 
 # ==================== HANDLER TELEGRAM BOT ====================
