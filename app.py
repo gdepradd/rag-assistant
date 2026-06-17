@@ -111,11 +111,25 @@ def handle_delete_context(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Gagal: {e}")
 
-@bot.message_handler(content_types=['document', 'photo'])
+# Pastikan decorator menangkap tipe document dan photo
+@bot.message_handler(content_types=['document', 'photo', 'text'])
 def handle_admin_upload(message):
-    if message.from_user.id != ADMIN_ID: return
+    if message.from_user.id != ADMIN_ID: 
+        return
+
+    # 1. Ekstrak teks pemicu (apakah dari teks biasa atau dari caption file)
+    command_text = message.caption if message.content_type in ['document', 'photo'] else message.text
+    
+    # 2. Validasi apakah pesan mengandung perintah /add
+    if not command_text or not command_text.startswith('/add'):
+        return
+
     try:
         text_content, source_tag = "", ""
+        
+        # 3. Beri indikator bahwa bot menerima perintah dan sedang bekerja
+        status_msg = bot.reply_to(message, "⏳ Mengunduh dan mengekstrak dokumen. Proses ini mungkin memakan waktu...")
+
         if message.content_type == 'document':
             file_name = message.document.file_name
             base_name, file_extension = os.path.splitext(file_name)
@@ -131,31 +145,42 @@ def handle_admin_upload(message):
                 for page in pdf_reader.pages:
                     extracted = page.extract_text()
                     if extracted: text_content += extracted + "\n"
+                
+                # Jika PyPDF2 gagal/kosong, gunakan OCR Vision
                 if not text_content.strip():
+                    bot.edit_message_text("🔄 Mode OCR aktif. Menggunakan Groq Vision untuk membaca PDF...", chat_id=message.chat.id, message_id=status_msg.message_id)
                     pdf_document = fitz.open(stream=downloaded_file, filetype="pdf")
                     for page_num in range(len(pdf_document)):
                         pix = pdf_document.load_page(page_num).get_pixmap(dpi=150)
                         text_content += extract_text_with_vision_llm(pix.tobytes("jpeg")) + "\n"
+                        
             elif file_extension.lower() in ['.png', '.jpg', '.jpeg']:
                 text_content = extract_text_with_vision_llm(downloaded_file)
+                
         elif message.content_type == 'photo':
             source_tag = f"photo_{message.message_id}"
             file_info = bot.get_file(message.photo[-1].file_id)
             text_content = extract_text_with_vision_llm(bot.download_file(file_info.file_path))
 
-        if not text_content.strip(): return
+        # 4. Tangani silent failure jika teks tetap kosong
+        if not text_content.strip(): 
+            bot.edit_message_text("❌ Gagal mengekstrak teks. Dokumen kosong atau format tidak didukung.", chat_id=message.chat.id, message_id=status_msg.message_id)
+            return
+        
+        bot.edit_message_text(f"✅ Teks berhasil diekstrak. Memulai proses embedding dan vectorisasi ke Qdrant...", chat_id=message.chat.id, message_id=status_msg.message_id)
         
         chunks = text_splitter.split_text(text_content)
         points = []
         for chunk in chunks:
-            vector = get_embedding_from_hf(chunk) # Menggunakan API HF
+            vector = get_embedding_from_hf(chunk) 
             points.append(PointStruct(id=str(uuid.uuid4()), vector=vector, payload={"text": chunk, "source": source_tag}))
-            time.sleep(0.5) # Jeda anti Rate Limit
+            time.sleep(0.5) 
 
         qdrant_client.upsert(collection_name=COLLECTION_NAME, points=points)
-        bot.reply_to(message, f"✅ File diproses. Tag: `/delete {source_tag}`")
+        bot.reply_to(message, f"✅ Selesai. File berhasil masuk database dengan Tag: `/delete {source_tag}`")
+        
     except Exception as e:
-        bot.reply_to(message, f"❌ Error: {e}")
+        bot.reply_to(message, f"❌ Terjadi kesalahan fatal: {e}")
 
 @bot.message_handler(func=lambda message: True)
 def handle_rag_query(message):
