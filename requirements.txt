@@ -1,0 +1,9 @@
+pyTelegramBotAPI
+groq
+qdrant-client
+langchain-text-splitters
+pypdf
+PyMuPDF
+fastapi
+uvicorn
+requests
