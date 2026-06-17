@@ -5,6 +5,7 @@ import base64
 import time
 import requests # Tambahkan impor requests
 import fitz
+import json
 from pypdf import PdfReader
 from fastapi import FastAPI, Request, Response
 import telebot
@@ -63,21 +64,42 @@ def get_embedding_from_hf(text: str) -> list:
     raise Exception("HF API gagal merespons setelah percobaan maksimal.")
 
 # ==================== HELPER: GROQ VISION OCR ====================
-def extract_text_with_vision_llm(image_bytes: bytes) -> str:
-    base64_image = base64.b64encode(image_bytes).decode('utf-8')
-    # Prompt dipertegas untuk tabel
-    prompt = "Ekstrak seluruh teks dan tabel dari gambar ini secara presisi tanpa ada satu baris pun yang terlewat. Pertahankan format tabel. Jangan tambahkan komentar, pembuka, atau penjelasan."
-    try:
+def extract_page_with_vision(image_bytes: bytes) -> str:
+   base64_image = base64.b64encode(image_bytes).decode('utf-8')
+   prompt = """
+    Ekstrak seluruh informasi, jadwal, dan tabel dari gambar ini.
+    Kamu WAJIB mengembalikan data murni HANYA dalam format JSON Array of Objects.
+    Gunakan key yang relevan (contoh: "kegiatan", "tanggal", "keterangan").
+    Jika bukan berupa tabel, jadikan satu object JSON dengan key "informasi".
+    DILARANG KERAS memberikan teks pembuka, penutup, atau penjelasan di luar kode JSON.
+    
+    Contoh Output yang Diharapkan:
+    [
+      {"kegiatan": "Wisuda 173", "tanggal": "14 Agustus 2024"},
+      {"kegiatan": "Masa Pembayaran UKT", "tanggal": "2-10 Januari 2025"}
+    ]
+    atau contoh lain 
+    [
+      {"Nama Dosen": "Alexander", "NIP": "0012321"},
+      {"Nama Dosen": "Hirohito", "NIP": "2203123"}
+    ]
+    """
+   try:
         completion = groq_client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="meta-llama/llama-3.2-11b-vision-preview",
             messages=[
                 {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}
             ],
             temperature=0.0,
-            max_tokens=4096 # Dinaikkan 4x lipat untuk mengakomodasi tabel panjang
+            max_tokens=4096 
         )
-        return completion.choices[0].message.content
-    except Exception as e:
+        
+        raw_response = completion.choices[0].message.content
+        # Menghapus blok markdown bawaan LLM dengan aman
+        clean_json = raw_response.replace('```json', '').replace('```', '').strip()
+        return clean_json
+        
+   except Exception as e:
         return f"[ERROR_VISION: {str(e)}]"
 
 # ==================== HANDLER TELEGRAM BOT ====================
