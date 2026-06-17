@@ -64,7 +64,7 @@ def get_embedding_from_hf(text: str) -> list:
     raise Exception("HF API gagal merespons setelah percobaan maksimal.")
 
 # ==================== HELPER: GROQ VISION OCR ====================
-def extract_page_with_vision(image_bytes: bytes) -> str:
+def extract_text_with_vision_llm(image_bytes: bytes) -> str:
    base64_image = base64.b64encode(image_bytes).decode('utf-8')
    prompt = """
     Ekstrak seluruh informasi, jadwal, dan tabel dari gambar ini.
