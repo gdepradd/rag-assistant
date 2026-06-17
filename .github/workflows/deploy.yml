@@ -37,6 +37,6 @@ jobs:
 
       - name: Deploy to Railway via CLI
         run: |
-          railway redeploy --project ${{ secrets.RAILWAY_PROJECT_ID }} -y
+          railway redeploy --project ${{ secrets.RAILWAY_PROJECT_ID }} --environment production -y
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
