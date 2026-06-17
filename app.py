@@ -76,8 +76,9 @@ def extract_text_with_vision_llm(image_bytes: bytes) -> str:
             max_tokens=1024
         )
         return completion.choices[0].message.content
-    except Exception:
-        return ""
+    except Exception as e:
+        # Jangan gunakan return "" agar kita tahu error aslinya
+        return f"[ERROR_VISION: {str(e)}]"
 
 # ==================== HANDLER TELEGRAM BOT ====================
 
@@ -112,7 +113,7 @@ def handle_delete_context(message):
         bot.reply_to(message, f"❌ Gagal: {e}")
 
 # Pastikan decorator menangkap tipe document dan photo
-@bot.message_handler(content_types=['document', 'photo', 'text'])
+@bot.message_handler(content_types=['document', 'photo'])
 def handle_admin_upload(message):
     if message.from_user.id != ADMIN_ID: 
         return
