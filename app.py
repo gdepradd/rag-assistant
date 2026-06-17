@@ -86,7 +86,7 @@ def extract_text_with_vision_llm(image_bytes: bytes) -> str:
     """
    try:
         completion = groq_client.chat.completions.create(
-            model="meta-llama/llama-3.2-11b-vision-preview",
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[
                 {"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}
             ],
