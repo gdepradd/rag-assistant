@@ -1,31 +1,37 @@
 import os
 import base64
-import requests
 import time
-from config import groq_client, HF_API_TOKEN
+from config import groq_client
+from google import genai
+from google.genai import types
 
-# Embedding's model, api from HF use bge-m3
+# Konfigurasi Gemini dengan library baru
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+if not gemini_api_key:
+    raise ValueError("GEMINI_API_KEY tidak ditemukan di environment variables.")
+
+# Inisialisasi client Gemini yang baru
+gemini_client = genai.Client(api_key=gemini_api_key)
+
 def get_embedding_from_hf(text: str) -> list:
-    api_url = "https://router.huggingface.co/hf-inference/models/BAAI/bge-m3/pipeline/feature-extraction"
-    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-
-    max_retries = 3
-    for attempt in range(max_retries):
-        response = requests.post(api_url, headers=headers, json={"inputs": text})
-
-        if response.status_code == 200:
-            result = response.json()
-            if isinstance(result, list) and isinstance(result[0], list):
-                return result[0]
-            return result
-        elif "is currently loading" in response.text or response.status_code == 503:
-            time.sleep(5)
-            continue
-        else:
-            raise Exception(f"Error HF API: {response.text}")
-
-    raise Exception("HF API gagal merespons setelah percobaan maksimal.")
-
+    """
+    Menghasilkan dense vector embedding menggunakan Google GenAI SDK terbaru.
+    """
+    clean_text = text.replace("\n", " ").strip()
+    
+    for attempt in range(3):
+        try:
+            # Format pemanggilan untuk library google-genai versi terbaru
+            response = gemini_client.models.embed_content(
+                model='gemini-embedding-2',
+                config=types.EmbedContentConfig(output_dimensionality=768),
+                contents=clean_text,
+            )
+            return response.embeddings[0].values
+        except Exception as e:
+            if attempt == 2:
+                raise Exception(f"Gagal generate embedding via Gemini API: {str(e)}")
+            time.sleep(1.0)
 #function for extract doc and image, use groq API platform, model : meta-llama/llama-4-scout-17b-16e-instruct
 def extract_text_with_vision_llm(image_bytes: bytes) -> str:
    base64_image = base64.b64encode(image_bytes).decode('utf-8')
