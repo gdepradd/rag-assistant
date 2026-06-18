@@ -45,51 +45,61 @@ Sistem beroperasi dalam dua alur utama:
 
 ```mermaid
 graph TD
+    %% Definisi Style
     classDef startEnd fill:#333,stroke:#fff,stroke-width:2px,color:#fff;
     classDef process fill:#1f77b4,stroke:#fff,stroke-width:1px,color:#fff;
     classDef decision fill:#ff7f0e,stroke:#fff,stroke-width:1px,color:#fff;
     classDef io fill:#2ca02c,stroke:#fff,stroke-width:1px,color:#fff;
     classDef db fill:#9467bd,stroke:#fff,stroke-width:1px,color:#fff;
 
-    Start([START]):::startEnd --> Input[/INPUT <br> (Pesan Telegram)/]:::io
-    Input --> isCommand{Diawali /add <br> ATAU /del?}:::decision
+    %% --- NODE UTAMA ---
+    Start([START]):::startEnd --> Input["INPUT: Pesan Telegram"]:::io
+    Input --> isCommand{"Diawali /add atau /del?"}:::decision
 
-    isCommand -- "TIDAK" --> EmbedQuery[EMBEDDING QUERY <br> (Gemini API)]:::process
-    EmbedQuery --> SearchQuery[PENCARIAN KEMIRIPAN]:::process
-    SearchQuery --> dbQdrant1[(QDRANT DB)]:::db
+    %% ==========================================
+    %% JALUR 1: USER BERTANYA (RAG RETRIEVAL)
+    %% ==========================================
+    isCommand -- "TIDAK" --> EmbedQuery["EMBEDDING QUERY (Gemini API)"]:::process
+    EmbedQuery --> SearchQuery["PENCARIAN KEMIRIPAN"]:::process
+    SearchQuery --> dbQdrant1[("QDRANT DB")]:::db
     
-    dbQdrant1 -.-> CheckThreshold{Skor Kemiripan <br> > Threshold?}:::decision
+    dbQdrant1 -.-> CheckThreshold{"Skor Kemiripan > Threshold?"}:::decision
 
-    CheckThreshold -- "TIDAK" --> ReturnUnknown[RETURN <br> 'Tidak Diketahui']:::process
-    ReturnUnknown --> OutputRAGFail[/OUTPUT/]:::io
+    CheckThreshold -- "TIDAK" --> ReturnUnknown["RETURN: 'Tidak Diketahui'"]:::process
+    ReturnUnknown --> OutputRAGFail["OUTPUT"]:::io
     OutputRAGFail --> End([END]):::startEnd
 
-    CheckThreshold -- "YA" --> GenText[GENERATE TEXT <br> (Groq Llama 3)]:::process
-    GenText --> OutputRAGSuccess[/OUTPUT/]:::io
+    CheckThreshold -- "YA" --> GenText["GENERATE TEXT (Groq Llama 3)"]:::process
+    GenText --> OutputRAGSuccess["OUTPUT"]:::io
     OutputRAGSuccess --> End
 
-    isCommand -- "YA" --> isAdmin{User == <br> ADMIN_ID?}:::decision
+    %% ==========================================
+    %% JALUR 2: ADMIN COMMAND
+    %% ==========================================
+    isCommand -- "YA" --> isAdmin{"User == ADMIN_ID?"}:::decision
 
-    isAdmin -- "TIDAK" --> DenyCmd[PERINTAH DITOLAK]:::process
-    DenyCmd --> OutputDeny[/OUTPUT/]:::io
+    isAdmin -- "TIDAK" --> DenyCmd["PERINTAH DITOLAK"]:::process
+    DenyCmd --> OutputDeny["OUTPUT"]:::io
     OutputDeny --> End
 
-    isAdmin -- "YA" --> isDelete{Perintah <br> == /del?}:::decision
+    isAdmin -- "YA" --> isDelete{"Perintah == /del?"}:::decision
 
-    isDelete -- "YA" --> DeleteCtx[DELETE CONTEXT]:::process
-    DeleteCtx --> dbQdrant2[(QDRANT DB)]:::db
-    dbQdrant2 -.-> OutputDel[/OUTPUT <br> ('Berhasil dihapus')/]:::io
+    %% --- JALUR 2A: DELETE KONTEKS ---
+    isDelete -- "YA" --> DeleteCtx["DELETE CONTEXT"]:::process
+    DeleteCtx --> dbQdrant2[("QDRANT DB")]:::db
+    dbQdrant2 -.-> OutputDel["OUTPUT: 'Berhasil dihapus'"]:::io
     OutputDel --> End
 
-    isDelete -- "TIDAK" --> isDoc{Ada Lampiran <br> GAMBAR/DOC?}:::decision
+    %% --- JALUR 2B: ADD KONTEKS ---
+    isDelete -- "TIDAK" --> isDoc{"Ada Lampiran GAMBAR/DOC?"}:::decision
 
-    isDoc -- "YA" --> Extract[EXTRACT WITH <br> Llama Vision / PyMuPDF]:::process
-    Extract --> EmbedAdd[EMBEDDING <br> (Gemini API)]:::process
+    isDoc -- "YA" --> Extract["EXTRACT WITH Llama Vision / PyMuPDF"]:::process
+    Extract --> EmbedAdd["EMBEDDING (Gemini API)"]:::process
     isDoc -- "TIDAK" --> EmbedAdd
 
-    EmbedAdd --> UploadDB[UPLOAD VECTOR DB]:::process
-    UploadDB --> dbQdrant3[(QDRANT DB)]:::db
-    dbQdrant3 -.-> OutputAdd[/OUTPUT <br> ('Berhasil ditambah')/]:::io
+    EmbedAdd --> UploadDB["UPLOAD VECTOR DB"]:::process
+    UploadDB --> dbQdrant3[("QDRANT DB")]:::db
+    dbQdrant3 -.-> OutputAdd["OUTPUT: 'Berhasil ditambah'"]:::io
     OutputAdd --> End
 ```
 
